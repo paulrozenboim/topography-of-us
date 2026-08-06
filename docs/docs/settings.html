@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Topography of Us — Settings</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div id="app">
+  <div class="vj">
+    <div class="vj-col vj-controls">
+      <div>
+        <div class="eyebrow">Control room</div>
+        <h2 style="font-size:22px;margin-top:8px">Settings</h2>
+        <div class="readout" style="margin-top:6px">Everything here changes the projection and tablet live, on whatever device they're open on right now.</div>
+        <div class="status-pill" id="statusPill" style="margin-top:10px"><i></i><span id="statusText">Local demo mode — this device only</span></div>
+      </div>
+
+      <div>
+        <h2>What the wall is showing</h2>
+        <div class="readout" style="margin-bottom:8px">Auto-pilot cycles through these automatically. Choosing one below turns auto-pilot off and locks the wall to that view until you turn it back on.</div>
+        <div class="grid" id="grid"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="chip" id="autoBtn"></button>
+        </div>
+      </div>
+
+      <div>
+        <h2>Theme</h2>
+        <div class="readout" style="margin-bottom:8px">One theme now applies to every operator page — Cast Path, Projection, Settings, and Archive stay in sync. Dark blends light additively (routes brighten where they overlap); Light blends like ink (better for a bright room).</div>
+        <div class="row">
+          <button class="chip" id="themeBtn"></button>
+        </div>
+      </div>
+
+      <div>
+        <h2>Tonight's data</h2>
+        <div class="readout" style="margin-bottom:8px">Real casts (from the tablet) and demo paths are tracked separately, so rehearsing never mixes into the real count.</div>
+        <div class="row">
+          <button class="chip" id="seedBtn">Add 60 demo paths<b>for rehearsing the wall alone</b></button>
+          <button class="chip" id="rehBtn"></button>
+          <button class="chip danger" id="clearSeedBtn">Clear demo paths only<b>real casts tonight are kept</b></button>
+          <button class="chip danger" id="clearAllBtn">Clear everything<b>real casts included — can't be undone</b></button>
+        </div>
+      </div>
+
+      <div>
+        <h2>Sync mode</h2>
+        <div class="readout" id="syncModeInfo"></div>
+      </div>
+
+      <div>
+        <h2>Archive</h2>
+        <div class="readout" style="margin-bottom:8px">Every path currently in this session — download as JSON to keep it, or re-import a saved archive to revisit an old event. The gallery page lists them all with links to each constellation.</div>
+        <div class="row">
+          <a class="chip" href="archive.html" target="_blank">Open gallery<b>every path as a browsable card</b></a>
+          <button class="chip" id="exportBtn">Download as JSON<b>timestamped, all paths in this session</b></button>
+          <button class="chip" id="importBtn">Import from JSON<b>merges a saved archive back in</b></button>
+          <input type="file" id="importFile" accept="application/json,.json" style="display:none">
+        </div>
+      </div>
+    </div>
+
+    <div class="vj-col vj-readouts">
+      <div>
+        <h2>Tonight, in numbers</h2>
+        <div class="readout" id="ro"></div>
+      </div>
+
+      <div>
+        <h2>Bulletin queue</h2>
+        <div class="readout" style="margin-bottom:8px">The full pool of lines the wall can currently say, based on tonight's data.</div>
+        <div class="readout" id="bq"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/remote-config.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/seed.js"></script>
+<script src="assets/nav.js"></script>
+<script>
+"use strict";
+const el=(tag,cls,html)=>{const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e};
+
+const modes=[
+  ["All paths",{type:"all"},"everything cast tonight"],
+  ["Recent 12",{type:"recent"},"the last dozen journeys"],
+  ["Heaviest links",{type:"heaviest"},"top 5 segments only"],
+  ["Sole traveller",{type:"outlier"},"the least-shared route"],
+  ["Longest journey",{type:"longest"},"only the longest path cast"],
+  ["Signature route",{type:"signature"},"the most-repeated route only"],
+  ["Uniques only",{type:"uniques"},"routes traced by exactly one person"],
+  ["Four-line crossers",{type:"fourline"},"paths touching all four lines"],
+  ["Blank",{type:"blank"},"hides every route"]
+];
+const grid=document.getElementById("grid");
+const chips=modes.map(([label,f,hint])=>{
+  const b=el("button","chip",`${label}<b>${hint}</b>`);
+  b.onclick=()=>{ Store.setAuto(false); Store.setFilter(f) };
+  b._f=f; grid.appendChild(b); return b;
+});
+
+const autoBtn=document.getElementById("autoBtn");
+autoBtn.onclick=()=>Store.setAuto(!Store.auto);
+
+const themeBtn=document.getElementById("themeBtn");
+themeBtn.onclick=()=>Store.setTheme(Store.theme==="dark"?"light":"dark");
+
+document.getElementById("seedBtn").onclick=()=>seedPaths(60);
+document.getElementById("clearSeedBtn").onclick=()=>{ if(confirm("Remove all demo/rehearsal paths? Real casts tonight are kept.")) Store.clearSeeded() };
+document.getElementById("clearAllBtn").onclick=()=>{ if(confirm("Clear EVERY path — including real casts tonight? This can't be undone.")) Store.clear() };
+
+let rehIv=null;
+const rehBtn=document.getElementById("rehBtn");
+function setRehearsing(on){
+  if(on && !rehIv) rehIv=setInterval(()=>Store.addPath(randomPath(true)),6000);
+  if(!on && rehIv){ clearInterval(rehIv); rehIv=null }
+  rehBtn.setAttribute("aria-pressed", on?"true":"false");
+  rehBtn.innerHTML = on
+    ? `Live rehearsal: On<b>casting a demo path every 6s — click to stop</b>`
+    : `Live rehearsal: Off<b>click to auto-cast a demo path every 6s</b>`;
+}
+rehBtn.onclick=()=> setRehearsing(!rehIv);
+setRehearsing(false);
+
+const ro=document.getElementById("ro"), bq=document.getElementById("bq");
+function refresh(){
+  chips.forEach(b=>b.setAttribute("aria-pressed", JSON.stringify(b._f)===JSON.stringify(Store.filter) && !Store.auto ? "true":"false"));
+  autoBtn.setAttribute("aria-pressed", Store.auto?"true":"false");
+  autoBtn.innerHTML = Store.auto
+    ? `Auto-pilot: On<b>cycling every 14s — click to hold the current view</b>`
+    : `Auto-pilot: Off<b>wall is locked to your last choice above</b>`;
+
+  const isDark = Store.theme === "dark";
+  themeBtn.setAttribute("aria-pressed", isDark ? "true" : "false");
+  themeBtn.innerHTML = `Theme: ${isDark ? "Dark" : "Light"}<b>click to switch to ${isDark ? "light" : "dark"} everywhere</b>`;
+
+  const A=analyse(Store.paths);
+  ro.innerHTML = A.total
+    ? `Real casts <b>${A.real}</b> &nbsp;·&nbsp; Demo paths <b>${A.seeded}</b><br>
+       Distinct routes <b>${A.distinct}</b> &nbsp;·&nbsp; Average length <b>${A.avgLen.toFixed(1)}</b> stations<br>
+       Busiest station <b>${A.topNode?A.topNode.n:"—"}</b><br>
+       Most common anchor <b>${A.topAnchor?A.topAnchor.n:"—"}</b><br>
+       Most common destination <b>${A.topEnd?A.topEnd.n:"—"}</b><br>
+       Unvisited stations <b>${A.untouched.length}</b>`
+    : `No paths yet. Add demo paths to rehearse, or leave this empty and cast for real from the tablet.`;
+  bq.innerHTML = bulletins(A).map(b=>`<div>› ${b.line.replace(/[{}]/g,"")}</div>`).join("") || `<div>Nothing to say yet.</div>`;
+}
+Store.sub(refresh); refresh();
+
+const pill=document.getElementById("statusPill"), statusText=document.getElementById("statusText");
+const syncModeInfo=document.getElementById("syncModeInfo");
+
+function renderSyncInfo(mode){
+  // Top status pill — one-line at-a-glance
+  pill.classList.toggle("remote", mode==="local" || mode==="cloud");
+  statusText.textContent =
+    mode==="local"   ? "Connected — local relay (this network)" :
+    mode==="cloud"   ? "Connected — cloud (Firebase)" :
+    mode==="offline" ? "Sync offline — this device only" :
+                       "Local demo mode — this device only";
+
+  // Full "Sync mode" panel — explains what's on and how to switch. Switching
+  // is really "visit a different URL": the operator laptop's local address
+  // when the Python relay is running, or the github.io URL for cloud.
+  const cloudURL = "https://paulrozenboim.github.io/topography-of-us/";
+  const cloudNote = `<div>To go cloud again: open <b>${cloudURL}</b> on this device.</div>`;
+  const localNote = `<div>To go local: run <b>python sync-server.py</b> on the operator laptop, then open the <b>http://&lt;laptop-ip&gt;:8765/</b> URL it prints. No internet needed.</div>`;
+
+  if(mode==="local"){
+    syncModeInfo.innerHTML = `
+      <b>Local — via this laptop's relay.</b> Devices join the operator laptop's hotspot and sync through it. No internet required.
+      <br><br>${cloudNote}`;
+  } else if(mode==="cloud"){
+    syncModeInfo.innerHTML = `
+      <b>Cloud — Firebase Realtime Database.</b> Works over any internet connection. Every message routes through Firebase.
+      <br><br>${localNote}`;
+  } else if(mode==="offline"){
+    syncModeInfo.innerHTML = `
+      <b>Offline.</b> Firebase couldn't be reached and the local relay isn't running. Only tabs on this device see each other (BroadcastChannel).
+      <br><br>${localNote}`;
+  } else {
+    // "local demo mode" here is store.js's default label for BroadcastChannel-only,
+    // fired before any remote transport has been adopted. Sync is initialising.
+    syncModeInfo.innerHTML = `<b>Initialising…</b> probing for a local relay, then falling back to cloud.`;
+  }
+}
+Sync.onStatus(renderSyncInfo);
+Sync.hello();
+
+/* ---- Archive: export + import --------------------------------------------
+   Export dumps the current Store.paths (plus station metadata for future-proofing
+   against station renames) as a JSON file. Import merges paths back in, preserving
+   each path's original seeded flag — an imported real cast stays real, an imported
+   demo path stays demo, so the "revisit an old event" flow shows honest numbers.
+   -------------------------------------------------------------------------- */
+document.getElementById("exportBtn").onclick = () => {
+  const payload = {
+    exported: new Date().toISOString(),
+    count: Store.paths.length,
+    stations: NODES.map(n=>({id:n.id, n:n.n, c:n.c})),
+    paths: Store.paths
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+  const stamp = new Date().toISOString().replace(/[-:]/g,"").slice(0,15); // YYYYMMDDTHHMMSS
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `topography-of-us-${stamp}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+};
+
+const importFile = document.getElementById("importFile");
+document.getElementById("importBtn").onclick = () => importFile.click();
+importFile.onchange = async () => {
+  const f = importFile.files[0]; if(!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    if(!Array.isArray(data.paths)) throw new Error("no `paths` array in file");
+    let added = 0, skipped = 0;
+    for(const p of data.paths){
+      if(!p || !p.id || !Array.isArray(p.nodes)){ skipped++; continue }
+      const before = Store.paths.length;
+      // preserve original seeded/real flag from the export
+      Store.addPath({id:p.id, t:p.t||Date.now(), nodes:p.nodes, seeded: !!p.seeded});
+      if(Store.paths.length > before) added++;
+    }
+    alert(`Imported ${added} paths` +
+          (skipped ? ` (${skipped} skipped — bad shape)` : "") +
+          `\n${data.paths.length - added - skipped} were already in the store.`);
+  }catch(e){
+    alert("Import failed: " + e.message);
+  }
+  importFile.value = ""; // let the same file be re-picked later
+};
+initQuickNav({current:"settings"});
+</script>
+</body>
+</html>

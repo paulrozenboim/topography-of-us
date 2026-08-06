@@ -1,0 +1,366 @@
+/* Bundled variable fonts — no internet dependency. The three files cover the full
+   weight + width range the design uses (via font-variation-settings: 'wdth' NNN).
+   URLs are quoted because the filenames contain commas. */
+@font-face{
+  font-family:'Archivo';
+  src:url("fonts/Archivo-VariableFont_wdth,wght.ttf") format("truetype-variations"),
+      url("fonts/Archivo-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight:100 900; font-stretch:62% 125%; font-style:normal; font-display:swap;
+}
+@font-face{
+  font-family:'Archivo';
+  src:url("fonts/Archivo-Italic-VariableFont_wdth,wght.ttf") format("truetype-variations"),
+      url("fonts/Archivo-Italic-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight:100 900; font-stretch:62% 125%; font-style:italic; font-display:swap;
+}
+@font-face{
+  font-family:'Martian Mono';
+  src:url("fonts/MartianMono-VariableFont_wdth,wght.ttf") format("truetype-variations"),
+      url("fonts/MartianMono-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight:100 800; font-stretch:75% 112%; font-style:normal; font-display:swap;
+}
+
+:root{
+  --line-f:#E8402A; --line-r:#3B57C4; --line-c:#00A277; --line-m:#F2A007;
+  --ease:cubic-bezier(.16,.84,.34,1);
+  --rail:1px;
+  --pad:clamp(14px,2.4vw,28px);
+}
+[data-theme="dark"]{
+  --bg:#0A0B0D; --bg-2:#101215; --ink:#F4F6F8; --ink-2:#8B939C; --ink-3:#4A5058;
+  --hair:#22262B; --node-fill:#0A0B0D; --panel:rgba(16,18,21,.86); --shadow:0 0 0 1px #22262B;
+}
+[data-theme="light"]{
+  --bg:#E9EBEA; --bg-2:#F4F5F4; --ink:#14171A; --ink-2:#5C6469; --ink-3:#636A6E;
+  --hair:#C9CECD; --node-fill:#F4F5F4; --panel:rgba(244,245,244,.9); --shadow:0 0 0 1px #C9CECD;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--ink);font-family:'Archivo',system-ui,sans-serif;
+  font-variation-settings:'wdth' 100; transition:background .5s var(--ease),color .5s var(--ease)}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+.mono{font-family:'Martian Mono','SFMono-Regular',monospace;font-weight:400}
+.eyebrow{font-family:'Martian Mono',monospace;font-size:9px;font-weight:400;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--ink-3)}
+
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+.canvas-wrap{position:relative;flex:1;min-height:0}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+
+/* ---------- top nav (index only) ---------- */
+.topnav{display:flex;gap:0;align-items:stretch;background:var(--panel);box-shadow:var(--shadow)}
+.topnav a{padding:9px 14px 8px;font-family:'Martian Mono',monospace;font-size:9px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-3);border-right:1px solid var(--hair);text-decoration:none}
+.topnav a:last-child{border-right:none}
+.topnav a:hover{color:var(--ink)}
+
+/* ---------- quick nav (shared, auto-hiding) ---------- */
+.nav-handle{position:fixed;top:0;left:50%;transform:translateX(-50%);width:52px;height:14px;
+  padding:0;border:none;cursor:pointer;background:var(--panel);box-shadow:var(--shadow);
+  border-radius:0 0 8px 8px;z-index:95;opacity:.4;transition:opacity .2s}
+.nav-handle::before{content:"";position:absolute;left:50%;top:5px;transform:translateX(-50%);
+  width:22px;height:3px;border-radius:2px;background:var(--ink-3)}
+.nav-handle:hover{opacity:.9}
+.quicknav{position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-110%);z-index:96;
+  display:flex;gap:0;align-items:stretch;background:var(--panel);backdrop-filter:blur(12px);
+  box-shadow:var(--shadow);border-radius:0 0 6px 6px;opacity:0;pointer-events:none;
+  transition:opacity .25s var(--ease),transform .25s var(--ease)}
+.quicknav.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.quicknav a,.quicknav button{padding:10px 15px 9px;font-family:'Martian Mono',monospace;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);border-right:1px solid var(--hair);
+  text-decoration:none;white-space:nowrap;background:none}
+.quicknav > *:last-child{border-right:none}
+.quicknav a:hover,.quicknav button:hover{color:var(--ink)}
+.quicknav a.current{color:var(--ink);background:rgba(127,127,127,.1)}
+.quicknav .nav-div{width:1px;background:var(--hair);margin:6px 2px;padding:0}
+
+/* ---------- projection ---------- */
+.proj-head{position:absolute;top:0;left:0;right:0;z-index:5;padding:var(--pad);pointer-events:none}
+.proj-title{display:inline-block;font-size:clamp(11px,1.1vw,15px);font-weight:700;letter-spacing:.02em;
+  font-variation-settings:'wdth' 118;text-transform:uppercase;line-height:1.1}
+.proj-title small{display:block;font-weight:400;font-size:.72em;color:var(--ink-3);letter-spacing:.18em;
+  font-variation-settings:'wdth' 100;margin-top:4px}
+.proj-stats-side{position:absolute;right:var(--pad);top:50%;transform:translateY(-50%);z-index:5;
+  text-align:right;pointer-events:none}
+.proj-stats-side .stat{margin-bottom:16px}
+.proj-stats-side .stat:last-child{margin-bottom:0}
+.proj-stats-side b{display:block;font-size:22px;line-height:1.2;font-weight:700;color:var(--ink);
+  font-variation-settings:'wdth' 110}
+.proj-stats-side span{display:block;font-family:'Martian Mono',monospace;font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-2);margin-top:2px}
+.bulletin-bar{flex:none;height:clamp(148px,20vh,206px);padding:var(--pad);border-top:var(--rail) solid var(--hair);
+  display:flex;flex-direction:column;justify-content:center;gap:9px;overflow:hidden}
+.bulletin-bar .bar{display:flex;align-items:flex-start;gap:14px}
+.bulletin-bar .tag{flex:none;margin-top:3px;font-family:'Martian Mono',monospace;font-size:9px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--bg);background:var(--ink);padding:4px 7px 3px}
+.bulletin-bar .line{font-size:clamp(19px,3.1vw,40px);line-height:1.15;font-weight:800;
+  font-variation-settings:'wdth' 122;letter-spacing:-.012em;text-transform:uppercase;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.bulletin-bar .line .hi{color:var(--accent,var(--ink))}
+.bulletin-bar .sub{font-family:'Martian Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--ink-3);
+  text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Cast-celebration flair — fires once the moment a new path lands. A brief
+   accent-tinted flash across the bar (matching the anchor's line colour via
+   the same --accent variable the .hi span already uses), and a punch on the
+   tag pill so it reads instantly as a distinct beat, not just another bulletin. */
+.bulletin-bar.celebrate .tag{background:var(--accent,var(--ink));color:var(--bg)}
+.bulletin-bar.celebrate-flash{
+  animation: cast-flash 1.6s cubic-bezier(.16,.84,.34,1);
+}
+.bulletin-bar.celebrate-flash .tag{
+  animation: cast-tag-punch .55s cubic-bezier(.16,.84,.34,1);
+}
+@keyframes cast-flash{
+  0%   { background: color-mix(in srgb, var(--accent, var(--ink)) 22%, transparent); }
+  60%  { background: color-mix(in srgb, var(--accent, var(--ink)) 8%,  transparent); }
+  100% { background: transparent; }
+}
+@keyframes cast-tag-punch{
+  0%   { transform: scale(1.28); letter-spacing: .34em; }
+  60%  { transform: scale(1.05); letter-spacing: .22em; }
+  100% { transform: scale(1);    letter-spacing: .2em;  }
+}
+.legend{position:absolute;left:var(--pad);bottom:var(--pad);z-index:5;
+  display:flex;flex-direction:column;gap:5px;pointer-events:none}
+.legend div{display:flex;align-items:center;gap:7px;font-family:'Martian Mono',monospace;font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+.legend i{width:16px;height:3px;display:block}
+
+/* ---------- tablet / kiosk ---------- */
+.kiosk{display:flex;flex-direction:column;height:100%}
+/* Header is centered above the map so the prompt and instructions catch the eye
+   the moment someone steps up. Old layout had them left-aligned in a narrow
+   column — participants were reading the map and never noticing the ask. */
+.kiosk-head{padding:var(--pad) var(--pad) 10px;text-align:center}
+/* Both phase variants of the prompt/instructions render stacked in the same grid cell.
+   The cell sizes itself to the TALLER of the two, permanently — so switching between them
+   never changes the header's height, which would otherwise resize the canvas beneath it
+   and visibly shift every station on screen the moment a phase changes. */
+.prompt-slot, .instructions-slot{display:grid}
+.prompt-slot > *, .instructions-slot > *{grid-area:1/1}
+.prompt{font-size:clamp(20px,2.8vw,32px);font-weight:800;font-variation-settings:'wdth' 116;
+  letter-spacing:-.01em;line-height:1.1}
+.prompt em{font-style:normal;color:var(--ink-3)}
+.instructions{margin:12px auto 0;font-family:'Martian Mono',monospace;font-size:13px;letter-spacing:.03em;
+  color:var(--ink-2);line-height:1.6;max-width:62ch}
+.instructions b{color:var(--ink);font-weight:600}
+.phase-hidden{visibility:hidden}
+.progress-track{display:flex;gap:4px;margin-top:16px}
+.progress-track i{flex:1;height:3px;background:var(--hair);display:block}
+.progress-track i.on{background:var(--ink)}
+.undo-row{justify-content:center}
+.kiosk-foot{padding:12px var(--pad) var(--pad);display:flex;gap:10px;align-items:center;
+  border-top:var(--rail) solid var(--hair)}
+.route-strip{flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden;
+  font-family:'Martian Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-2);white-space:nowrap}
+.route-strip .stop{display:inline-flex;align-items:center;gap:6px}
+.route-strip .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.route-strip .arw{color:var(--ink-3)}
+.route-strip .empty{color:var(--ink-3)}
+.btn{flex:none;padding:13px 22px;font-family:'Martian Mono',monospace;font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;background:var(--ink);color:var(--bg);transition:opacity .2s,transform .12s}
+.btn:active{transform:translateY(1px)}
+.btn[disabled]{opacity:.22;pointer-events:none}
+.btn.ghost{background:none;color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--hair)}
+.btn.small{padding:9px 14px;font-size:10px}
+
+/* ---------- preview / constellation modal ---------- */
+.modal-veil{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;
+  transition:opacity .3s var(--ease);display:flex;align-items:center;justify-content:center;padding:20px 16px}
+.modal-veil.on{opacity:1;pointer-events:auto}
+/* The modal is a flex column with a hard viewport-relative height cap. The
+   print-area (constellation + list + keepsake + credits) scrolls internally;
+   the foot with the buttons stays pinned at the bottom so the participant
+   can always reach Print/Done without hunting. dvh is used to handle mobile
+   Safari's URL bar collapsing correctly — vh includes it, dvh doesn't. */
+.modal{width:min(560px,94vw);
+  max-height:calc(100vh - 40px);
+  max-height:calc(100dvh - 40px);
+  display:flex;flex-direction:column;
+  background:var(--bg);box-shadow:0 0 0 1px var(--hair),0 30px 80px rgba(0,0,0,.5);
+  transform:translateY(10px) scale(.98);transition:transform .3s var(--ease)}
+.modal-veil.on .modal{transform:translateY(0) scale(1)}
+.print-area{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch}
+.modal-foot{flex:0 0 auto;border-top:1px solid var(--hair)}
+.modal-head{padding:20px 22px 0}
+.modal-head h3{font-size:20px;font-weight:800;font-variation-settings:'wdth' 118;text-transform:uppercase;line-height:1.15}
+.modal-head p{margin-top:6px;font-family:'Martian Mono',monospace;font-size:10.5px;color:var(--ink-2);letter-spacing:.04em}
+.constellation-wrap{position:relative;margin:16px 22px;height:min(46vh,340px);background:#05060700 ;
+  box-shadow:inset 0 0 0 1px var(--hair)}
+/* Landscape (horizontal iPad, wide-and-short viewports) — widen the modal so
+   the constellation stays legible AND leaves room for the QR keepsake below
+   without demanding a scroll. Constellation gets a smaller vh cap in landscape
+   so the QR block is always visible in the viewport. */
+@media (orientation: landscape) and (min-width: 900px){
+  .modal{width:min(820px,94vw)}
+  .constellation-wrap{height:min(38vh,260px)}
+}
+@media (orientation: landscape) and (max-height: 720px){
+  .constellation-wrap{height:min(34vh,220px)}
+  .modal-head{padding:14px 22px 0}
+  .modal-head h3{font-size:17px}
+  .keepsake{padding:10px}
+  .keepsake canvas{width:100px!important;height:100px!important}
+}
+.modal-list{margin:0 22px 4px;display:flex;flex-wrap:wrap;gap:6px}
+.modal-list span{display:inline-flex;align-items:center;gap:6px;font-family:'Martian Mono',monospace;
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:5px 9px;box-shadow:inset 0 0 0 1px var(--hair)}
+.modal-list i{width:7px;height:7px;border-radius:50%}
+.modal-foot{padding:16px 22px 22px;display:flex;gap:8px;flex-wrap:wrap}
+.modal-foot .btn{flex:1;min-width:120px;text-align:center}
+
+/* receipt state (modal reused after posting) */
+.stub-meta{margin:0 22px 14px;display:flex;justify-content:space-between;font-family:'Martian Mono',monospace;
+  font-size:9px;color:var(--ink-3);letter-spacing:.1em;border-top:1px dashed var(--hair);padding-top:12px}
+
+/* keepsake block — QR + shareable URL, only shown after casting */
+.keepsake{margin:0 22px 18px;display:flex;gap:14px;align-items:center;padding:12px;
+  box-shadow:inset 0 0 0 1px var(--hair)}
+.keepsake canvas{flex:none;background:#fff;padding:6px;display:block}
+.keepsake-text{flex:1;min-width:0}
+.keepsake-text p{margin-top:6px;font-family:'Martian Mono',monospace;font-size:10.5px;
+  line-height:1.55;color:var(--ink-2)}
+.keepsake-url{display:block;margin-top:8px;font-family:'Martian Mono',monospace;font-size:9.5px;
+  color:var(--ink-3);letter-spacing:.02em;word-break:break-all;text-decoration:none}
+.keepsake-url:hover{color:var(--ink)}
+
+/* credits — shared by view.html and the tablet's print block. On screen the block
+   is compact and low-contrast; in print it's slightly stronger. */
+.credits{font-family:'Martian Mono',monospace;font-size:10px;line-height:1.7;
+  letter-spacing:.03em;color:var(--ink-3)}
+.credits .row{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.credits b{color:var(--ink-2);font-weight:600}
+.credits a{color:var(--ink-2);text-decoration:none}
+.credits a:hover{color:var(--ink)}
+/* When the whole row is an anchor, give it a mobile-safe tap target — a stroked
+   underline plus enough vertical padding that a fingertip actually lands. The
+   old markup nested a div inside an anchor which some phones treated as a
+   zero-height link, hence "not tappable". */
+.credits a.row-link{padding:8px 0;border-bottom:1px dashed var(--hair);
+  border-top:1px dashed var(--hair);margin-top:4px}
+.credits a.row-link:active{color:var(--ink);background:rgba(127,127,127,.06)}
+.print-credits{display:none}       /* only shown in print via @media print */
+@media print{ .credits{color:#333} .credits b{color:#111} .credits a{color:#111} }
+
+/* -------- print --------
+   Tuned for 80mm POS thermal receipt paper (~72mm printable width). The @page
+   size declaration is what makes the browser lay out for the narrow strip
+   instead of trying to fit A4/Letter into 72mm and either scaling or clipping.
+   All font sizes are in pt so the browser doesn't reflow relative to viewport.
+   The keepsake block (QR + URL) is stacked vertically because 72mm is too
+   narrow for the side-by-side layout used on screen.
+   ---
+   ALSO — the modal has a CSS transform on it (translateY+scale entrance
+   animation). A transform makes the modal a *containing block* for any
+   fixed-position descendants, so the old print rules that used position:fixed
+   on .print-area were fixed to the (centered) modal, not the page. Result:
+   half the page was blank. The fix: neutralize the transform + centering flex
+   chain in print, and let .print-area flow as normal block content. */
+@media print{
+  @page{ size: 72mm auto; margin: 3mm; }
+  html,body{background:#fff;color:#000;overflow:visible;height:auto;margin:0;padding:0}
+  /* Force pure black on every printable element — thermal heads can't reliably
+     print grays; every non-black colour ends up as faint dithered noise. The
+     one exception is the constellation stroke, which renderConstellation draws
+     as pure #000 in print mode. */
+  .print-area *{color:#000!important}
+  body *{visibility:hidden}
+  .modal-veil{position:static!important;display:block!important;padding:0!important;
+    background:none!important;opacity:1!important;pointer-events:auto!important}
+  .modal{position:static!important;transform:none!important;box-shadow:none!important;
+    width:auto!important;max-width:100%!important;max-height:none!important;
+    background:none!important;display:block!important}
+  .modal-foot, .modal-list, .stub-meta{display:none!important}
+  .print-area{position:static!important;padding:0!important;background:#fff;
+    visibility:hidden;overflow:visible!important}
+  .print-area *{visibility:visible}
+  .print-area canvas, .print-area svg{filter:none}
+
+  /* Header — title only. Subtitle ("N stations, in order…") hidden for the
+     minimal receipt the user asked for. */
+  .modal-head{padding:0!important;text-align:center}
+  .modal-head h3{font-size:14pt;margin:0 0 2mm 0;line-height:1.1;letter-spacing:-.01em;
+    font-weight:800}
+  .modal-head p{display:none!important}
+
+  /* Constellation — no fixed height. renderConstellation in print mode sizes
+     the canvas bitmap so its aspect ratio matches the drawing (via inline
+     style.width + style.height), and CSS lets the wrap grow to hug it. This
+     kills the whitespace that showed up under wide/short paths on receipts.
+     The 100%-forcing width/height rules from screen would defeat this — hence
+     the width:auto/height:auto here (canvas has explicit inline sizes in print). */
+  .constellation-wrap{height:auto!important;margin:2mm 0 3mm 0!important;
+    box-shadow:none!important;border:none!important;background:#fff!important;
+    line-height:0}
+  .constellation-wrap canvas{width:100%!important;height:auto!important;display:block!important}
+
+  /* Keepsake — QR only. The "TAKE IT WITH YOU" eyebrow, the description
+     paragraph, and the raw URL text are all hidden per the receipt spec.
+     ---
+     Deliberately DO NOT force display here. tablet.html sets inline
+     display:none in openPreview() (no QR generated yet) and display:flex in
+     castNow() (QR ready). Forcing display:block in print used to override the
+     display:none, printing an empty QR placeholder as a ~40mm blank rectangle
+     between the constellation and the credits — the whitespace the user kept
+     seeing was the empty QR canvas, not real margin. */
+  .keepsake{margin:2mm 0!important;padding:0!important;box-shadow:none!important;
+    border:none!important;text-align:center;justify-content:center}
+  .keepsake canvas{background:#fff!important;display:block!important;
+    width:32mm!important;height:32mm!important;margin:0 auto!important;padding:0!important}
+  .keepsake-text{display:none!important}
+
+  /* Credits — one line per row, no IG URL. Small dashed separator above. */
+  .print-credits{display:block!important;margin-top:3mm!important;padding-top:2mm!important;
+    border-top:1px dashed #000!important;text-align:center}
+  .print-credits .row{display:block!important;margin-bottom:0.6mm!important;
+    font-size:7pt;line-height:1.4;overflow-wrap:anywhere}
+  .print-credits b{font-weight:700}
+}
+
+/* ---------- VJ ---------- */
+/* Two columns on wide screens: controls on the left (settings, wall view, theme,
+   data), read-outs on the right (Tonight in numbers, Bulletin queue). The bulletin
+   queue can grow tall — putting it in its own column stops it from pushing every
+   control off the top of the viewport. Collapses to a single column below 960px. */
+.vj{padding:var(--pad);overflow-y:auto;height:100%;display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;
+  max-width:1280px;margin:0 auto;width:100%;align-items:start}
+.vj-col{display:flex;flex-direction:column;gap:22px;min-width:0}
+@media (max-width:960px){
+  .vj{grid-template-columns:1fr;max-width:760px;gap:22px}
+}
+.vj h2{font-size:13px;font-weight:700;letter-spacing:.02em;font-variation-settings:'wdth' 118;
+  text-transform:uppercase;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:7px}
+.chip{padding:11px 12px;text-align:left;box-shadow:inset 0 0 0 1px var(--hair);font-family:'Martian Mono',monospace;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);transition:.18s}
+.chip:hover{color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);box-shadow:none}
+.chip b{display:block;font-size:9px;color:var(--ink-3);font-weight:400;margin-top:4px;letter-spacing:.06em}
+.chip[aria-pressed="true"] b{color:var(--bg);opacity:.6}
+.chip.danger{box-shadow:inset 0 0 0 1px var(--line-f)}
+.chip.danger:hover{color:var(--line-f)}
+.readout{font-family:'Martian Mono',monospace;font-size:10px;line-height:1.9;color:var(--ink-2)}
+.readout b{color:var(--ink);font-weight:600}
+.row{display:flex;gap:7px;flex-wrap:wrap}
+.status-pill{display:inline-flex;align-items:center;gap:6px;font-family:'Martian Mono',monospace;font-size:9px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.status-pill i{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+.status-pill.remote i{background:var(--line-c)}
+
+/* ---------- misc ---------- */
+.corner-btn{position:absolute;z-index:8;padding:7px 9px;font-family:'Martian Mono',monospace;font-size:9px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--hair);
+  background:var(--panel);backdrop-filter:blur(8px)}
+.corner-btn:hover{color:var(--ink)}
+.tr{top:var(--pad);right:var(--pad)}
+.br{bottom:var(--pad);right:var(--pad)}
+.toast{position:absolute;left:50%;bottom:88px;transform:translateX(-50%) translateY(8px);z-index:30;
+  padding:8px 13px;background:var(--ink);color:var(--bg);font-family:'Martian Mono',monospace;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;opacity:0;pointer-events:none;transition:.25s var(--ease)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}

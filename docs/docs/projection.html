@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>The Topography of Us — Live wall</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div id="app">
+  <div class="canvas-wrap">
+    <canvas id="cv"></canvas>
+    <div class="proj-head">
+      <div class="proj-title">The Topography of Us<small>Live civic map · Teder, Tel Aviv</small></div>
+    </div>
+    <div class="proj-stats-side" id="stats"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div class="bulletin-bar">
+    <div class="bar"><span class="tag" id="tag">Service notice</span><h1 class="line" id="line"></h1></div>
+    <div class="sub" id="sub"></div>
+  </div>
+</div>
+<script src="assets/remote-config.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/nav.js"></script>
+<script>
+"use strict";
+const el=(tag,cls,html)=>{const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e};
+
+const cv=document.getElementById("cv");
+const view=new MapView(cv,{role:"projection", labels:true, showAggregate:true, navigable:true});
+
+const legend=document.getElementById("legend");
+Object.entries(CATS).forEach(([k,v])=>{
+  const d=el("div"); const i=el("i"); i.style.background=v.color; d.appendChild(i);
+  d.appendChild(el("span",null,v.name)); legend.appendChild(d);
+});
+
+const tag=document.getElementById("tag"), line=document.getElementById("line"), sub=document.getElementById("sub");
+const stats=document.getElementById("stats");
+initQuickNav({current:"projection", actions:[
+  {label:"Fit", onClick:()=>view.resetView()},
+  {label:"Theme", onClick:()=>Store.setTheme(Store.theme==="dark"?"light":"dark")}
+]});
+
+let queue=[], qi=0, lastSwap=0, current=null;
+const reduced=matchMedia("(prefers-reduced-motion:reduce)").matches;
+const GLYPH="▚▞▛▜▙▟█▖▗▘▝";
+function scramble(node, text){
+  if(reduced){ node.innerHTML=text; return }
+  const chars=[...text]; let f=0;
+  const iv=setInterval(()=>{
+    f++;
+    node.innerHTML=chars.map((ch,i)=>{
+      if(ch===" ") return " ";
+      if(i < f*2.2) return ch;
+      return `<span style="opacity:.35">${GLYPH[(Math.random()*GLYPH.length)|0]}</span>`;
+    }).join("");
+    if(f*2.2>chars.length){clearInterval(iv); node.innerHTML=text}
+  },26);
+}
+const bulletinBar = document.querySelector(".bulletin-bar");
+function paint(b){
+  current=b;
+  bulletinBar.classList.toggle("celebrate", !!b.celebrate);
+  // Kick the CSS animation on every celebration paint even if the class was
+  // already on (previous cast still fresh) — clone the node's own class list.
+  if(b.celebrate){
+    bulletinBar.classList.remove("celebrate-flash");
+    void bulletinBar.offsetWidth;                     // force reflow
+    bulletinBar.classList.add("celebrate-flash");
+  } else {
+    bulletinBar.classList.remove("celebrate-flash");
+  }
+  tag.textContent=b.tag;
+  const accent = b.accent ? catColor(b.accent, Store.theme) : null;
+  line.style.setProperty("--accent", accent||"");
+  const html=b.line.replace(/\{([^}]+)\}/g, (_,m)=>`<span class="hi">${m}</span>`);
+  scramble(line, html.replace(/<[^>]+>/g,""));
+  setTimeout(()=>{ if(current===b) line.innerHTML=html }, reduced?0:520);
+  sub.textContent=b.sub||"";
+  view.setFocus(b.focus||null);
+}
+function rebuild(){ queue=bulletins(view.A||analyse(Store.paths)); if(qi>=queue.length) qi=0 }
+function tick(ts){
+  if(!queue.length) rebuild();
+  if(ts-lastSwap > (current&&current.hold?11000:8500)){
+    lastSwap=ts; rebuild();
+    if(queue.length){ paint(queue[qi%queue.length]); qi++ }
+  }
+  const A=view.A||analyse(Store.paths);
+  stats.innerHTML=`<div class="stat"><b>${A.real}</b><span>journeys cast</span></div>`+
+    `<div class="stat"><b>${A.distinct}</b><span>distinct routes</span></div>`+
+    `<div class="stat"><b>${A.edgeList.length}</b><span>active links</span></div>`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+const AUTO=[{type:"all"},{type:"recent"},{type:"heaviest"},{type:"cat",c:"F"},{type:"all"},{type:"cat",c:"M"},{type:"outlier"}];
+let ai=0;
+setInterval(()=>{ if(!Store.auto) return; ai=(ai+1)%AUTO.length; Store.setFilter(AUTO[ai]) },14000);
+
+Store.sub(evt=>{
+  document.documentElement.dataset.theme=Store.theme;
+  view.dirty=true;
+  if(evt.type==="path" && evt.animate){
+    // Cast choreography — three staged beats, no two animations fighting:
+    //   0.0 s  celebration bulletin (no focus, no motion overlay)
+    //   0.0 s  injection animation starts (own overlay, ~3.8 s)
+    //   4.5 s  insight bulletin (with its own focus + motion)
+    // lastSwap is pushed into the future to freeze the auto-pilot queue for
+    // the whole ~10 s window so viewers can actually read what the wall says.
+    const anchor = NODES[evt.path.nodes[0]];
+    const dest   = NODES[evt.path.nodes[evt.path.nodes.length-1]];
+    paint({
+      tag: "✦ New cast",
+      accent: anchor.c,
+      line: `A new path joins the wall — from {${anchor.n}} to {${dest.n}}.`,
+      sub: `Watch it draw itself across the map`,
+      focus: null,
+      celebrate: true
+    });
+    view.playInjection(evt.path);
+    lastSwap = performance.now() + 4000;    // block auto-rotation while injection plays
+    setTimeout(()=>{
+      const insight = castBulletin(evt.path, Store.paths);
+      paint(insight);
+      // ~7 s of visible insight before auto-pilot resumes
+      lastSwap = performance.now() + 1500;
+    }, 4500);
+  }
+  if(evt.type==="reset"){ qi=0; lastSwap=-1e9 }
+  if(evt.type==="remove"){ view.dirty=true; lastSwap=-1e9 }
+});
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="t")Store.setTheme("projection",Store.theme==="dark"?"light":"dark");
+  if(e.key==="r")view.resetView();
+  if(e.key==="f"){ const d=document.documentElement; document.fullscreenElement?document.exitFullscreen():d.requestFullscreen&&d.requestFullscreen() }
+});
+
+Sync.hello();
+</script>
+</body>
+</html>

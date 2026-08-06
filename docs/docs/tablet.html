@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>The Topography of Us — Cast your path</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .kiosk-head{position:relative}
+  .undo-row{display:flex;gap:8px;margin-top:14px}
+</style>
+</head>
+<body>
+<div id="app">
+  <button class="corner-btn tr" id="themeBtn" title="Toggle theme">Theme</button>
+  <div class="kiosk">
+    <div class="kiosk-head">
+      <div class="prompt-slot">
+        <h2 class="prompt" id="promptAnchor">Where are you right now?</h2>
+        <h2 class="prompt" id="promptDraw">Now trace where you're heading.</h2>
+      </div>
+      <div class="instructions-slot">
+        <div class="instructions" id="instrAnchor">Tap a station below to anchor your journey. There's no timer — take the time you need to find it.</div>
+        <div class="instructions" id="instrDraw">Drag through <b>3 to 10</b> more stations, in the order you'd travel them. Drag back over a station you've already placed to erase back to that point.</div>
+      </div>
+      <div class="progress-track" id="track"></div>
+      <div class="undo-row">
+        <button class="btn ghost small" id="undoBtn">Undo last stop</button>
+        <button class="btn ghost small" id="redoBtn">Start over</button>
+      </div>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="cv"></canvas>
+      <div class="toast" id="toast"></div>
+    </div>
+    <div class="kiosk-foot">
+      <div class="route-strip" id="strip"></div>
+      <button class="btn" id="previewBtn" disabled>Preview &amp; cast</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-veil" id="veil">
+  <div class="modal">
+    <div class="print-area" id="printArea">
+      <div class="modal-head">
+        <h3 id="mHead">Your constellation</h3>
+        <p id="mSub">This is what joins the wall.</p>
+      </div>
+      <div class="constellation-wrap"><canvas id="star"></canvas></div>
+      <div class="modal-list" id="mList"></div>
+      <div class="stub-meta" id="mMeta" style="display:none"></div>
+      <div class="keepsake" id="mKeepsake" style="display:none">
+        <canvas id="mQR"></canvas>
+        <div class="keepsake-text">
+          <div class="eyebrow">Take it with you</div>
+          <p>Scan with your phone to keep this constellation. The link stays live after the night.</p>
+          <a class="keepsake-url" id="mURL" target="_blank" rel="noopener" hidden></a>
+        </div>
+      </div>
+      <div class="print-credits credits" aria-hidden="true">
+        <div class="row"><b>The Topography of Us</b></div>
+        <div class="row">Democracy Week · Tel Aviv · 2026</div>
+        <div class="row">Cast at Teder · <span id="mPrintDate"></span></div>
+        <div class="row">Made by <b>@unapaulogetic_</b></div>
+      </div>
+    </div>
+    <div class="modal-foot" id="mFoot"></div>
+  </div>
+</div>
+
+<script src="assets/remote-config.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/qrcode.min.js"></script>
+<script>
+"use strict";
+const el=(tag,cls,html)=>{const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e};
+
+const cv=document.getElementById("cv");
+const view=new MapView(cv,{role:"tablet", labels:true, interactive:true, showAggregate:false, navigable:false});
+view.draft={nodes:[],pointer:null};
+
+const promptAnchor=document.getElementById("promptAnchor"), promptDraw=document.getElementById("promptDraw");
+const instrAnchor=document.getElementById("instrAnchor"), instrDraw=document.getElementById("instrDraw");
+const track=document.getElementById("track");
+const strip=document.getElementById("strip");
+const previewBtn=document.getElementById("previewBtn");
+const undoBtn=document.getElementById("undoBtn");
+const redoBtn=document.getElementById("redoBtn");
+const toast=document.getElementById("toast");
+
+// Tablet has no shared nav on purpose — a participant shouldn't be able to reach
+// Settings, Projection, or Home from the kiosk mid-show. Only the theme button
+// stays, top-right, so operators can flip dark/light without touching the router.
+document.getElementById("themeBtn").onclick =
+  ()=>Store.setTheme(Store.theme==="dark"?"light":"dark");
+document.documentElement.dataset.theme = Store.theme;
+
+let phase="anchor"; // anchor | draw
+
+// Rotating opening prompts — same intention (locate yourself right now),
+// different framings so a returning participant doesn't see the identical
+// question twice in a row. Rotated on load and after every cast.
+const OPENING_PROMPTS = [
+  "Where are you right now?",
+  "What state are you in tonight?",
+  "Where does this moment find you?",
+  "What's your ground tonight?",
+  "Which of these feels most like now?",
+  "Where do you stand tonight?"
+];
+let promptIdx = Math.floor(Math.random() * OPENING_PROMPTS.length);
+function nextOpeningPrompt(){
+  promptIdx = (promptIdx + 1) % OPENING_PROMPTS.length;
+  promptAnchor.textContent = OPENING_PROMPTS[promptIdx];
+}
+promptAnchor.textContent = OPENING_PROMPTS[promptIdx];
+
+function say(msg){ toast.textContent=msg; toast.classList.add("on"); clearTimeout(say._t); say._t=setTimeout(()=>toast.classList.remove("on"),1500) }
+
+function buildTrack(){
+  track.innerHTML="";
+  for(let i=0;i<MAX_STOPS;i++){
+    const seg=el("i"); if(i===MIN_STOPS-1) seg.style.marginRight="6px";
+    track.appendChild(seg);
+  }
+}
+buildTrack();
+instrDraw.innerHTML=`Drag through <b>${MIN_STOPS} to ${MAX_STOPS}</b> more stations, in the order you'd travel them. Drag back over a station you've already placed to erase back to that point.`;
+
+function render(){
+  const ns=view.draft.nodes;
+  const onAnchor = phase==="anchor";
+  promptAnchor.classList.toggle("phase-hidden", !onAnchor);
+  promptDraw.classList.toggle("phase-hidden", onAnchor);
+  instrAnchor.classList.toggle("phase-hidden", !onAnchor);
+  instrDraw.classList.toggle("phase-hidden", onAnchor);
+  [...track.children].forEach((seg,i)=> seg.classList.toggle("on", i<ns.length));
+  strip.innerHTML = ns.length
+    ? ns.map((id,i)=>{
+        const n=NODES[id];
+        return `${i?'<span class="arw">→</span>':''}<span class="stop"><i class="dot" style="background:${catColor(n.c,Store.theme)}"></i>${n.n}</span>`;
+      }).join("")
+    : `<span class="empty">No stations selected</span>`;
+  previewBtn.disabled = !(ns.length>=MIN_STOPS && ns.length<=MAX_STOPS);
+  undoBtn.disabled = ns.length===0;
+  view.dirty=true;
+}
+
+function undo(){
+  const ns=view.draft.nodes;
+  if(!ns.length) return;
+  if(ns.length===1){ phase="anchor"; view.draft.nodes=[]; }
+  else ns.pop();
+  render();
+}
+function reset(){ phase="anchor"; view.draft={nodes:[],pointer:null}; nextOpeningPrompt(); render() }
+undoBtn.onclick=undo;
+redoBtn.onclick=reset;
+
+/* ---- pointer: tap to anchor, drag to trace, drag back to erase ---- */
+let dragging=false;
+const pos=ev=>{const r=cv.getBoundingClientRect(); return {x:ev.clientX-r.left, y:ev.clientY-r.top}};
+
+function tryAdd(sp){
+  const n=view.nearest(sp, 40);
+  view.hot = n?n.id:null;
+  if(!n) return;
+  const ns=view.draft.nodes;
+  const idx=ns.indexOf(n.id);
+  if(idx===ns.length-1) return;               // hovering the current tip: no-op
+  if(idx!==-1){ ns.length=idx+1; render(); return; }   // Mini-Metro-style backtrack/erase
+  if(ns.length>=MAX_STOPS){ say(`Route full — ${MAX_STOPS} stops max`); return }
+  ns.push(n.id); render();
+}
+cv.addEventListener("pointerdown",ev=>{
+  cv.setPointerCapture(ev.pointerId);
+  const sp=pos(ev);
+  if(phase==="anchor"){
+    const n=view.nearest(sp,44);
+    if(!n){ say("Tap a station"); return }
+    view.draft.nodes=[n.id]; phase="draw"; render(); dragging=true;
+  } else { dragging=true; tryAdd(sp) }
+});
+cv.addEventListener("pointermove",ev=>{
+  const sp=pos(ev);
+  if(phase!=="draw"){ const n=view.nearest(sp,40); view.hot=n?n.id:null; return }
+  if(view.draft.nodes.length>=MAX_STOPS){
+    // route is full: freeze the line at the last stop instead of rubber-banding to the pointer
+    view.draft.pointer=null; dragging=false; view.dirty=true; return;
+  }
+  view.draft.pointer=view.toWorld(sp);
+  if(dragging) tryAdd(sp); else { const n=view.nearest(sp,40); view.hot=n?n.id:null }
+});
+const endDrag=()=>{dragging=false; if(phase==="draw") view.draft.pointer=null; render()};
+cv.addEventListener("pointerup",endDrag);
+cv.addEventListener("pointercancel",endDrag);
+cv.addEventListener("pointerleave",()=>{view.hot=null; view.draft.pointer=null});
+
+/* ---- preview / constellation modal ---- */
+const veil=document.getElementById("veil"), star=document.getElementById("star");
+const mHead=document.getElementById("mHead"), mSub=document.getElementById("mSub");
+const mList=document.getElementById("mList"), mFoot=document.getElementById("mFoot");
+const mMeta=document.getElementById("mMeta");
+const mKeepsake=document.getElementById("mKeepsake");
+const mQR=document.getElementById("mQR"), mURL=document.getElementById("mURL");
+const mPrintDate=document.getElementById("mPrintDate");
+let lastCastIds=null;                              // captured for onbeforeprint
+
+// The canvas is drawn to whatever CSS size it had at cast time; when the browser
+// switches to print media the constellation-wrap resizes (to 66×55mm for thermal
+// receipt paper) and the canvas would become a stretched bitmap. Redraw at the
+// new size so print gets crisp geometry.
+// Timing gotcha: browsers disagree on when beforeprint fires relative to the
+// media-query switch. Chrome fires it AFTER print styles apply (canvas parent
+// already at print size, one draw is enough). Safari and some Firefox versions
+// fire it BEFORE, so the parent still reports screen size. We handle both:
+// (1) a matchMedia('print') listener that fires exactly when print styles apply,
+// (2) beforeprint itself with a rAF-deferred draw as a belt-and-braces backup.
+const redrawForCurrentSize = (print=false) => {
+  if(lastCastIds && lastCastIds.length){
+    renderConstellation(star, lastCastIds, Store.theme, print ? {print:true} : {});
+  }
+};
+window.addEventListener("beforeprint", ()=>{
+  redrawForCurrentSize(true);
+  // rAF gives the browser a beat to apply print styles if it hasn't yet
+  requestAnimationFrame(()=>redrawForCurrentSize(true));
+});
+window.addEventListener("afterprint", ()=>redrawForCurrentSize(false));
+try{
+  matchMedia("print").addEventListener("change", e => { redrawForCurrentSize(e.matches) });
+}catch(_){}                                            // pre-2020 Safari doesn't support addEventListener on MQL
+
+const drawConstellation=(ids)=> renderConstellation(star, ids, Store.theme);
+
+function openPreview(){
+  const ns=view.draft.nodes.slice();
+  // Track the current path even before cast, so a Print from preview reruns
+  // renderConstellation in print mode instead of stretching a screen bitmap.
+  lastCastIds = ns.slice();
+  mHead.textContent="Your constellation";
+  mSub.textContent=`${ns.length} stations, in order. This is what joins the wall.`;
+  mMeta.style.display="none";
+  mKeepsake.style.display="none";
+  mList.innerHTML=ns.map((id,i)=>{const n=NODES[id];
+    return `<span><i style="background:${catColor(n.c,Store.theme)}"></i>${i+1}. ${n.n}</span>`}).join("");
+  mFoot.innerHTML="";
+  // No Print here — printing before commit lets people walk away with a receipt
+  // that never joined the wall. Print button moves in only after cast, in castNow().
+  const editBtn=el("button","btn ghost","Keep editing");
+  const castBtn=el("button","btn","Cast to the wall");
+  editBtn.onclick=()=>veil.classList.remove("on");
+  castBtn.onclick=()=>castNow(ns);
+  mFoot.append(editBtn, castBtn);
+  veil.classList.add("on");
+  requestAnimationFrame(()=>drawConstellation(ns));
+}
+previewBtn.onclick=()=>{ if(view.draft.nodes.length>=MIN_STOPS) openPreview() };
+
+function castNow(ns){
+  const p={id:uid(), t:Date.now(), nodes:ns};
+  Store.addPath(p);
+  lastCastIds = ns.slice();
+  const anchorName = NODES[ns[0]].n;
+  mHead.textContent = `From ${anchorName}`;      // matches view.html's title format
+  mSub.textContent = `${ns.length} stations, in order. This joins the wall.`;
+  mMeta.style.display="flex";
+  mMeta.innerHTML=`<span>№ ${p.id.toUpperCase()}</span><span>${new Date(p.t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>`;
+  mPrintDate.textContent = new Date(p.t).toLocaleString([], {dateStyle:"medium", timeStyle:"short"});
+
+  // build the take-home URL and QR — the base36 path + timestamp in the hash lets
+  // view.html rebuild the same constellation on the participant's phone AND show
+  // when they cast it, not when they later re-opened the link.
+  const viewURL = new URL("view.html", location.href).href
+    + "#p=" + encodePath(ns) + "&t=" + encodeTime(p.t);
+  mURL.textContent = viewURL;
+  mURL.href = viewURL;
+  renderQR(mQR, viewURL, 140);
+  mKeepsake.style.display = "flex";
+
+  mFoot.innerHTML="";
+  const printBtn=el("button","btn ghost","Print"); printBtn.onclick=()=>window.print();
+  const doneBtn=el("button","btn","Done");
+  doneBtn.onclick=()=>{ veil.classList.remove("on"); reset() };
+  mFoot.append(printBtn, doneBtn);
+  // long fallback in case someone walks off without tapping Done
+  clearTimeout(castNow._t);
+  castNow._t=setTimeout(()=>{ veil.classList.remove("on"); reset() }, 45000);
+}
+
+window.addEventListener("resize",()=>{ if(veil.classList.contains("on")) drawConstellation(view.draft.nodes) });
+
+const unsub=Store.sub(()=>{ document.documentElement.dataset.theme=Store.theme; view.dirty=true; render() });
+render();
+Sync.hello();
+</script>
+</body>
+</html>
